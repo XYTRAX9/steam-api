@@ -4,13 +4,13 @@
 
 ## Быстрый запуск
 
-Нужны Python 3.11+, Node.js 18+ и [ключ Steam Web API](https://steamcommunity.com/dev/apikey). Запускайте команды из корня репозитория.
+Нужны Python 3.12, Node.js 18+ и [ключ Steam Web API](https://steamcommunity.com/dev/apikey). В корне находятся два приложения: `backend/` и `frontend/`.
 
 ```bash
-python3 -m venv .venv
+cd backend
+python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-npm install
+python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
@@ -20,13 +20,17 @@ cp .env.example .env
 python -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
 
-Запустите API и интерфейс в разных терминалах:
+Запустите API из `backend/`:
 
 ```bash
-uvicorn main:app --reload
+python -m uvicorn main:app --reload
 ```
 
+Интерфейс запустите в другом терминале из `frontend/`:
+
 ```bash
+cd frontend
+npm ci
 npm run dev
 ```
 
@@ -43,7 +47,7 @@ npm run dev
 | `FRONTEND_URL` | Адрес интерфейса после входа | `http://localhost:3000` |
 | `ALLOWED_ORIGINS` | Разрешённые CORS origins, JSON-массив | localhost:3000 и localhost:8000 |
 
-Проект использует SQLite. Таблицы создаются при старте приложения через `create_all`. Миграции Alembic пока не настроены, поэтому изменение существующей схемы требует отдельной миграции.
+Проект использует SQLite. Относительный путь в `DATABASE_URL` разрешается относительно `backend/`, поэтому база хранится в `backend/steam.db` независимо от каталога запуска. Таблицы создаются при старте приложения через `create_all`. Миграции Alembic пока не настроены, поэтому изменение существующей схемы требует отдельной миграции.
 
 Для развёртывания по HTTPS задайте HTTPS-адреса в `BASE_URL` и `FRONTEND_URL`: cookie сессии тогда получает флаг `Secure`. Интерфейс должен направлять `/api/*` на бэкенд по тому же принципу, что и Vite в разработке. `BASE_URL` должен быть доступен браузеру при возврате из Steam.
 
@@ -74,12 +78,19 @@ SteamID64 возвращается строкой, поскольку JavaScript
 
 ## Проверки
 
+Из `backend/`:
+
 ```bash
 python -m unittest discover -s tests -v
+```
+
+Из `frontend/`:
+
+```bash
 npm run build
 ```
 
-Тесты API подменяют ответы Steam и проверяют вход, сессию, запрет доступа к чужому ID, импорт и контракт статуса. Реальный вход требует рабочего Steam API key и доступного callback URL. Логи бэкенда пишутся в `logs/steam_api.log`.
+Тесты API подменяют ответы Steam и проверяют вход, сессию, запрет доступа к чужому ID, импорт и контракт статуса. Реальный вход требует рабочего Steam API key и доступного callback URL. Логи бэкенда пишутся в `backend/logs/steam_api.log`.
 
 ## Что осталось
 
@@ -88,4 +99,4 @@ npm run build
 - Решить, как отличать закрытую библиотеку Steam от действительно пустой.
 - Добавить автоматическое обновление статуса, если нужен именно непрерывный мониторинг.
 
-Основные файлы: `main.py` (FastAPI), `app/routers/` (маршруты), `app/services/steam_service.py` (Steam Web API), `app/crud.py` (база данных), `frontend/src/` (интерфейс).
+Основные файлы: `backend/main.py` (FastAPI), `backend/app/routers/` (маршруты), `backend/app/services/steam_service.py` (Steam Web API), `backend/app/crud.py` (база данных), `frontend/src/` (интерфейс). Предыдущие технические заметки находятся в `backend/docs/`.
