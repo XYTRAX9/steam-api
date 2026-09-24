@@ -8,13 +8,41 @@ export const useUserStore = defineStore('user', () => {
   const playerStatus = ref<PlayerStatus | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  let sessionRequest: Promise<User | null> | null = null
+
+  const loadCurrentUser = (): Promise<User | null> => {
+    if (!sessionRequest) {
+      sessionRequest = authApi.getMe()
+        .then((response) => {
+          currentUser.value = response.data
+          return response.data
+        })
+        .catch((err) => {
+          currentUser.value = null
+          if (err.response?.status === 401) return null
+          error.value = err.response?.data?.detail || 'Failed to load user session'
+          throw err
+        })
+        .finally(() => {
+          sessionRequest = null
+        })
+    }
+    return sessionRequest
+  }
+
+  const logout = async () => {
+    await authApi.logout()
+    currentUser.value = null
+    games.value = []
+    playerStatus.value = null
+  }
 
   const getSteamLoginUrl = async () => {
     try {
       loading.value = true
       error.value = null
       const response = await authApi.getSteamLoginUrl()
-      return response.data.login_url
+      window.location.href = response.data.login_url
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to get login URL'
       throw err
@@ -73,6 +101,8 @@ export const useUserStore = defineStore('user', () => {
     playerStatus,
     loading,
     error,
+    loadCurrentUser,
+    logout,
     getSteamLoginUrl,
     importGames,
     fetchGames,

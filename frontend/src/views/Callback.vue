@@ -36,27 +36,34 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
-import { authApi } from '@/api'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const loading = ref(true)
 const error = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    const params = new URLSearchParams(window.location.search)
-
-    if (!params.has('openid.mode')) {
-      error.value = 'Недействительный ответ от Steam'
+    const callbackError = new URLSearchParams(window.location.search).get('error')
+    if (callbackError) {
+      error.value = callbackError === 'steam_unavailable'
+        ? 'Не удалось получить профиль Steam. Попробуйте позже.'
+        : 'Не удалось подтвердить вход через Steam.'
       loading.value = false
       return
     }
 
-    await authApi.handleCallback(params)
+    const user = await userStore.loadCurrentUser()
+    if (!user) {
+      error.value = 'Сессия не найдена. Войдите снова.'
+      loading.value = false
+      return
+    }
 
-    // Успешная авторизация
+    loading.value = false
     setTimeout(() => {
-      router.push('/games')
+      router.replace('/games')
     }, 1500)
   } catch (err: any) {
     error.value = err.response?.data?.detail || 'Не удалось завершить авторизацию'
@@ -74,7 +81,7 @@ onMounted(async () => {
 }
 
 .callback-content {
-  max-width: 480px;
+  max-width: 440px;
   width: 100%;
   padding: 64px 32px;
   text-align: center;
@@ -90,12 +97,12 @@ onMounted(async () => {
 }
 
 .spinner {
-  width: 64px;
-  height: 64px;
-  border: 4px solid var(--glass-border);
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--glass-border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -104,47 +111,56 @@ onMounted(async () => {
 
 .error-state svg {
   color: var(--error);
+  opacity: 0.9;
 }
 
 .success-state svg {
   color: var(--success);
+  opacity: 0.9;
 }
 
 h2 {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
   margin-top: 8px;
+  letter-spacing: -0.01em;
 }
 
 p {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text-secondary);
   line-height: 1.6;
+  font-weight: 500;
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 24px;
+  padding: 14px 28px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 15px;
-  transition: all 0.2s;
+  font-size: 14px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   margin-top: 16px;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  color: #0B0E14;
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.35);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
 }
 </style>

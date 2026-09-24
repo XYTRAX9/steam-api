@@ -32,7 +32,7 @@
         {{ importSuccess }}
       </div>
 
-      <div v-if="loading && games.length === 0" class="loading-state">
+      <div v-if="(loading || sessionLoading) && games.length === 0" class="loading-state">
         <div class="spinner"></div>
         <p>Загрузка игр...</p>
       </div>
@@ -44,8 +44,9 @@
           <circle cx="44" cy="36" r="4" stroke="currentColor" stroke-width="2"/>
           <path d="M28 30H36M28 42H36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
-        <h3>Нет игр</h3>
-        <p>Импортируйте игры из своей Steam библиотеки</p>
+        <h3>{{ userId ? 'Нет игр' : 'Войдите через Steam' }}</h3>
+        <p>{{ userId ? 'Импортируйте игры из своей Steam библиотеки' : 'После входа здесь появится ваша библиотека' }}</p>
+        <RouterLink v-if="!userId" to="/" class="btn btn-primary">Войти</RouterLink>
       </div>
 
       <div v-else class="games-grid">
@@ -87,7 +88,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
-const userId = ref(1) // В продакшене получать из auth
+const userId = computed(() => userStore.currentUser?.id)
+const sessionLoading = ref(true)
 const importSuccess = ref<string | null>(null)
 
 const games = computed(() => userStore.games)
@@ -129,12 +131,13 @@ const handleImageError = (e: Event) => {
 }
 
 onMounted(async () => {
-  if (userId.value) {
-    try {
-      await userStore.fetchGames(userId.value)
-    } catch (err) {
-      console.error('Failed to load games:', err)
-    }
+  try {
+    const user = await userStore.loadCurrentUser()
+    if (user) await userStore.fetchGames(user.id)
+  } catch (err) {
+    console.error('Failed to load games:', err)
+  } finally {
+    sessionLoading.value = false
   }
 })
 </script>
@@ -157,11 +160,13 @@ onMounted(async () => {
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 8px;
+  letter-spacing: -0.02em;
 }
 
 .page-description {
   font-size: 16px;
   color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .btn {
@@ -170,26 +175,31 @@ onMounted(async () => {
   gap: 8px;
   padding: 12px 20px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 15px;
-  transition: all 0.2s;
+  font-size: 14px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  color: #0B0E14;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.35);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -198,22 +208,22 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 20px;
-  border-radius: 12px;
+  padding: 14px 18px;
+  border-radius: 8px;
   margin-bottom: 24px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
 }
 
 .error-banner {
-  background: rgba(255, 59, 59, 0.1);
-  border: 1px solid rgba(255, 59, 59, 0.2);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   color: var(--error);
 }
 
 .success-banner {
-  background: rgba(0, 184, 148, 0.1);
-  border: 1px solid rgba(0, 184, 148, 0.2);
+  background: rgba(79, 209, 197, 0.08);
+  border: 1px solid rgba(79, 209, 197, 0.2);
   color: var(--success);
 }
 
@@ -228,12 +238,12 @@ onMounted(async () => {
 }
 
 .spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--glass-border);
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--glass-border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
   margin-bottom: 16px;
 }
 
@@ -244,17 +254,19 @@ onMounted(async () => {
 .loading-state p,
 .empty-state p {
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: 15px;
   margin-top: 12px;
+  font-weight: 500;
 }
 
 .empty-state svg {
   color: var(--text-tertiary);
   margin-bottom: 16px;
+  opacity: 0.6;
 }
 
 .empty-state h3 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 8px;
@@ -262,32 +274,33 @@ onMounted(async () => {
 
 .games-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
 }
 
 .game-card {
   display: flex;
-  gap: 16px;
-  padding: 16px;
+  gap: 14px;
+  padding: 14px;
   background: var(--glass-surface);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  transition: all 0.2s;
+  border-radius: 10px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(12px);
 }
 
 .game-card:hover {
   background: var(--glass-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: var(--text-tertiary);
 }
 
 .game-icon {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   background: var(--code-bg);
 }
@@ -313,10 +326,10 @@ onMounted(async () => {
 }
 
 .game-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -325,24 +338,25 @@ onMounted(async () => {
 .game-stats {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .stat {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .stat-label {
   color: var(--text-tertiary);
+  font-weight: 500;
 }
 
 .stat-value {
   color: var(--text-secondary);
   font-family: 'JetBrains Mono', monospace;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {

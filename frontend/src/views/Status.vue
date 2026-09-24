@@ -24,7 +24,7 @@
         {{ error }}
       </div>
 
-      <div v-if="loading && !playerStatus" class="loading-state">
+      <div v-if="(loading || sessionLoading) && !playerStatus" class="loading-state">
         <div class="spinner"></div>
         <p>Загрузка статуса...</p>
       </div>
@@ -124,8 +124,9 @@
           <circle cx="32" cy="26" r="10" stroke="currentColor" stroke-width="2"/>
           <path d="M16 52C16 42 23 36 32 36C41 36 48 42 48 52" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
-        <h3>Нет данных</h3>
-        <p>Загрузите статус игрока</p>
+        <h3>{{ userId ? 'Нет данных' : 'Войдите через Steam' }}</h3>
+        <p>{{ userId ? 'Загрузите статус игрока' : 'После входа здесь появится ваш статус' }}</p>
+        <RouterLink v-if="!userId" to="/" class="btn btn-primary">Войти</RouterLink>
       </div>
     </div>
   </div>
@@ -136,7 +137,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
-const userId = ref(1) // В продакшене получать из auth
+const userId = computed(() => userStore.currentUser?.id)
+const sessionLoading = ref(true)
 
 const playerStatus = computed(() => userStore.playerStatus)
 const loading = computed(() => userStore.loading)
@@ -182,12 +184,13 @@ const handleRefresh = async () => {
 }
 
 onMounted(async () => {
-  if (userId.value) {
-    try {
-      await userStore.fetchPlayerStatus(userId.value)
-    } catch (err) {
-      console.error('Failed to load status:', err)
-    }
+  try {
+    const user = await userStore.loadCurrentUser()
+    if (user) await userStore.fetchPlayerStatus(user.id)
+  } catch (err) {
+    console.error('Failed to load status:', err)
+  } finally {
+    sessionLoading.value = false
   }
 })
 </script>
@@ -210,11 +213,13 @@ onMounted(async () => {
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 8px;
+  letter-spacing: -0.02em;
 }
 
 .page-description {
   font-size: 16px;
   color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .btn {
@@ -223,31 +228,36 @@ onMounted(async () => {
   gap: 8px;
   padding: 12px 20px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 15px;
-  transition: all 0.2s;
+  font-size: 14px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  color: #0B0E14;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.35);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .spin {
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -258,13 +268,13 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 20px;
-  border-radius: 12px;
+  padding: 14px 18px;
+  border-radius: 8px;
   margin-bottom: 24px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
-  background: rgba(255, 59, 59, 0.1);
-  border: 1px solid rgba(255, 59, 59, 0.2);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   color: var(--error);
 }
 
@@ -279,29 +289,31 @@ onMounted(async () => {
 }
 
 .spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--glass-border);
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--glass-border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
   margin-bottom: 16px;
 }
 
 .loading-state p,
 .empty-state p {
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: 15px;
   margin-top: 12px;
+  font-weight: 500;
 }
 
 .empty-state svg {
   color: var(--text-tertiary);
   margin-bottom: 16px;
+  opacity: 0.6;
 }
 
 .empty-state h3 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 8px;
@@ -310,20 +322,20 @@ onMounted(async () => {
 .status-content {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .profile-card {
   background: var(--glass-surface);
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  padding: 32px;
+  border-radius: 12px;
+  padding: 28px;
   backdrop-filter: blur(12px);
 }
 
 .profile-header {
   display: flex;
-  gap: 24px;
+  gap: 20px;
   align-items: flex-start;
   margin-bottom: 24px;
 }
@@ -335,9 +347,9 @@ onMounted(async () => {
 
 .avatar,
 .avatar-placeholder {
-  width: 80px;
-  height: 80px;
-  border-radius: 12px;
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
   background: var(--code-bg);
 }
 
@@ -354,12 +366,13 @@ onMounted(async () => {
 
 .status-dot {
   position: absolute;
-  bottom: 4px;
-  right: 4px;
-  width: 16px;
-  height: 16px;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 3px solid var(--glass-surface);
+  box-shadow: 0 0 0 1px var(--glass-border);
 }
 
 .status-dot.online {
@@ -377,7 +390,7 @@ onMounted(async () => {
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  50% { opacity: 0.5; }
 }
 
 .profile-info {
@@ -386,18 +399,19 @@ onMounted(async () => {
 }
 
 .profile-name {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
 }
 
 .profile-status {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .status-text {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--text-secondary);
   font-weight: 500;
 }
@@ -407,32 +421,32 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   color: var(--accent);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s;
 }
 
 .profile-link:hover {
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .current-game {
   display: flex;
-  gap: 16px;
-  padding: 20px;
+  gap: 14px;
+  padding: 18px;
   background: var(--code-bg);
-  border-radius: 12px;
+  border-radius: 10px;
   align-items: center;
 }
 
 .game-indicator {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--glass-surface);
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--accent);
   flex-shrink: 0;
 }
@@ -443,58 +457,59 @@ onMounted(async () => {
 }
 
 .game-label {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-tertiary);
   margin-bottom: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   font-weight: 600;
 }
 
 .game-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
 }
 
 .stat-card {
   display: flex;
-  gap: 16px;
-  padding: 20px;
+  gap: 14px;
+  padding: 18px;
   background: var(--glass-surface);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: 10px;
   backdrop-filter: blur(12px);
-  transition: all 0.2s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .stat-card:hover {
   background: var(--glass-hover);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
+  border-color: var(--text-tertiary);
 }
 
 .stat-icon {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: currentColor;
   opacity: 0.1;
-  border-radius: 10px;
+  border-radius: 8px;
   flex-shrink: 0;
+  position: relative;
 }
 
 .stat-icon svg {
-  position: relative;
-  z-index: 1;
-  opacity: 10;
+  position: absolute;
+  opacity: 1;
 }
 
 .stat-content {
@@ -503,16 +518,16 @@ onMounted(async () => {
 }
 
 .stat-label {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-tertiary);
   margin-bottom: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   font-weight: 600;
 }
 
 .stat-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -533,7 +548,7 @@ onMounted(async () => {
   }
 
   .profile-card {
-    padding: 24px;
+    padding: 20px;
   }
 
   .profile-header {

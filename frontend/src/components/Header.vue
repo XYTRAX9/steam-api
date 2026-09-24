@@ -17,6 +17,12 @@
           <RouterLink to="/status" class="nav-link">Status</RouterLink>
         </nav>
 
+        <div v-if="userStore.currentUser" class="account">
+          <span class="account-name">{{ userStore.currentUser.persona_name }}</span>
+          <span v-if="logoutError" class="logout-error">Ошибка выхода</span>
+          <button class="sign-out" @click="handleLogout">Выйти</button>
+        </div>
+
         <button @click="themeStore.toggleTheme" class="theme-toggle" aria-label="Toggle theme">
           <svg v-if="themeStore.theme === 'light'" width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M10 3V1M10 19V17M17 10H19M1 10H3M15.657 4.343L17.071 2.929M2.929 17.071L4.343 15.657M15.657 15.657L17.071 17.071M2.929 2.929L4.343 4.343"
@@ -36,8 +42,24 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
+import { useUserStore } from '@/stores/user'
+import { useRouter } from 'vue-router'
+import { ref } from 'vue'
 
 const themeStore = useThemeStore()
+const userStore = useUserStore()
+const router = useRouter()
+const logoutError = ref(false)
+
+const handleLogout = async () => {
+  try {
+    logoutError.value = false
+    await userStore.logout()
+    router.push('/')
+  } catch {
+    logoutError.value = true
+  }
+}
 </script>
 
 <style scoped>
@@ -46,7 +68,7 @@ const themeStore = useThemeStore()
   top: 0;
   z-index: 100;
   border-bottom: 1px solid var(--glass-border);
-  padding: 16px 0;
+  padding: 12px 0;
 }
 
 .header-content {
@@ -62,12 +84,13 @@ const themeStore = useThemeStore()
   gap: 12px;
   color: var(--text-primary);
   font-weight: 600;
-  font-size: 18px;
-  transition: opacity 0.2s;
+  font-size: 16px;
+  transition: opacity 0.15s;
+  letter-spacing: -0.01em;
 }
 
 .logo:hover {
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .logo svg {
@@ -81,17 +104,17 @@ const themeStore = useThemeStore()
 .nav {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex: 1;
 }
 
 .nav-link {
-  padding: 8px 16px;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border-radius: 6px;
   color: var(--text-secondary);
   font-weight: 500;
-  font-size: 15px;
-  transition: all 0.2s;
+  font-size: 14px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
@@ -102,20 +125,21 @@ const themeStore = useThemeStore()
 
 .nav-link.router-link-active {
   color: var(--accent);
-  background: var(--code-bg);
+  background: rgba(56, 189, 248, 0.08);
 }
 
 .theme-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  transition: all 0.2s;
+  transition: all 0.15s;
+  cursor: pointer;
 }
 
 .theme-toggle:hover {
@@ -123,27 +147,89 @@ const themeStore = useThemeStore()
   color: var(--text-primary);
 }
 
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.account-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.sign-out {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sign-out:hover {
+  color: var(--text-primary);
+}
+
+.logout-error {
+  color: var(--error);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
+  .header {
+    padding: 10px 0;
+  }
+
   .header-content {
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .logo {
+    margin-right: auto;
+  }
+
+  .nav {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: space-between;
   }
 
   .logo-text {
     display: none;
   }
 
+  .logo {
+    font-size: 15px;
+  }
+
   .nav {
-    gap: 4px;
+    gap: 2px;
   }
 
   .nav-link {
-    padding: 8px 12px;
-    font-size: 14px;
+    padding: 7px 12px;
+    font-size: 13px;
   }
 
   .theme-toggle {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .account-name {
+    display: none;
   }
 }
 </style>

@@ -12,11 +12,14 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import Header from '@/components/Header.vue'
 import { useThemeStore } from '@/stores/theme'
+import { useUserStore } from '@/stores/user'
 
 const themeStore = useThemeStore()
+const userStore = useUserStore()
 
 onMounted(() => {
   themeStore.initTheme()
+  userStore.loadCurrentUser().catch(() => {})
 })
 </script>
 
