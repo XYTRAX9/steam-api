@@ -45,15 +45,11 @@ def update_user(db: Session, user_id: int, user_data: dict) -> Optional[models.U
     return db_user
 
 
-def create_or_update_games(db: Session, user_id: int, games: List[dict]) -> None:
+def create_or_update_games(db: Session, user_id: int, games: List[dict]) -> dict:
     """
     Создает или обновляет игры пользователя.
     Удаляет игры, которых больше нет в списке Steam.
     """
-    if not games:
-        logger.info(f"No games to update for user_id={user_id}")
-        return
-
     # Получаем существующие игры пользователя
     existing_games = db.query(models.Game).filter(models.Game.user_id == user_id).all()
     existing_games_dict = {game.app_id: game for game in existing_games}
@@ -98,6 +94,11 @@ def create_or_update_games(db: Session, user_id: int, games: List[dict]) -> None
 
     db.commit()
     logger.info(f"Updated {games_updated} and added {games_added} games for user_id={user_id}")
+    return {
+        "games_added": games_added,
+        "games_updated": games_updated,
+        "games_removed": len(games_to_remove),
+    }
 
 
 def get_user_games(db: Session, user_id: int) -> List[models.Game]:

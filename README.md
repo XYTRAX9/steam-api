@@ -1,219 +1,91 @@
 # Steam Integration API
 
-Полнофункциональное приложение для интеграции с Steam API с современным Vue 3 фронтендом и FastAPI бэкендом.
+Приложение для входа через Steam, импорта своей библиотеки игр и просмотра текущего статуса игрока. Бэкенд написан на FastAPI и SQLAlchemy, интерфейс на Vue 3, TypeScript и Vite.
 
-## 🏗️ Структура проекта
+## Быстрый запуск
 
-```
-steam-api/
-├── app/                      # Backend (FastAPI)
-│   ├── __init__.py
-│   ├── config.py            # Конфигурация и настройки
-│   ├── database.py          # Настройка БД и SQLAlchemy
-│   ├── models.py            # ORM модели
-│   ├── steam_service.py     # Сервис для работы с Steam API
-│   └── routers/             # API роутеры
-│       ├── auth.py          # Steam OAuth авторизация
-│       ├── games.py         # Управление играми
-│       └── status.py        # Статус игрока
-├── frontend/                # Frontend (Vue 3 + TypeScript)
-│   ├── index.html
-│   └── src/
-│       ├── main.ts          # Точка входа
-│       ├── App.vue          # Корневой компонент
-│       ├── assets/          # Стили и ресурсы
-│       │   └── main.css
-│       ├── api/             # API клиент
-│       │   └── index.ts
-│       ├── components/      # Vue компоненты
-│       │   └── Header.vue
-│       ├── views/           # Страницы
-│       │   ├── Home.vue
-│       │   ├── Games.vue
-│       │   ├── Status.vue
-│       │   └── Callback.vue
-│       ├── stores/          # Pinia хранилища
-│       │   ├── theme.ts
-│       │   └── user.ts
-│       └── router/          # Vue Router
-│           └── index.ts
-├── main.py                  # Точка входа backend
-├── .env                     # Переменные окружения
-├── requirements.txt         # Python зависимости
-├── package.json            # Node.js зависимости
-├── vite.config.ts          # Конфигурация Vite
-├── tsconfig.json           # TypeScript конфигурация
-└── README.md
+Нужны Python 3.11+, Node.js 18+ и [ключ Steam Web API](https://steamcommunity.com/dev/apikey). Запускайте команды из корня репозитория.
 
-```
-
-## 🚀 Возможности
-
-### Backend
-- ✅ Steam OAuth авторизация
-- ✅ Импорт игр из Steam библиотеки
-- ✅ Отслеживание статуса игрока в реальном времени
-- ✅ Устойчивая обработка ошибок с retry механизмом
-- ✅ Connection pooling для оптимизации производительности
-- ✅ Rate limiting для защиты от DDoS
-- ✅ CORS настройки для безопасности
-- ✅ Автоматическая документация API (Swagger/OpenAPI)
-
-### Frontend
-- ✅ Современный UI с glassmorphism эффектами
-- ✅ Тёмная/светлая тема
-- ✅ Полностью типизированный TypeScript
-- ✅ Reactive state management (Pinia)
-- ✅ Responsive дизайн
-- ✅ Оптимизированная загрузка и кэширование
-- ✅ Real-time обновление статуса
-
-## 📦 Установка
-
-### Backend
-
-1. Создайте виртуальное окружение:
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# или
-.venv\Scripts\activate     # Windows
-```
-
-2. Установите зависимости:
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-3. Настройте `.env` файл:
-```env
-STEAM_API_KEY=your_steam_api_key_here
-DATABASE_URL=sqlite:///./steam.db
-SECRET_KEY=your_secret_key_here_min_32_chars
-BASE_URL=http://localhost:8000
-ALLOWED_ORIGINS=["http://localhost:3000"]
-```
-
-### Frontend
-
-1. Установите Node.js зависимости:
-```bash
 npm install
+cp .env.example .env
 ```
 
-## 🎯 Запуск
+Заполните `STEAM_API_KEY` и `SECRET_KEY` в `.env`. Для `SECRET_KEY` сгенерируйте случайное значение:
 
-### Режим разработки
-
-1. **Запустите Backend** (порт 8000):
 ```bash
-python main.py
+python -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
 
-2. **Запустите Frontend** (порт 3000):
+Запустите API и интерфейс в разных терминалах:
+
+```bash
+uvicorn main:app --reload
+```
+
 ```bash
 npm run dev
 ```
 
-3. Откройте браузер:
-- Frontend: http://localhost:3000
-- API Docs: http://localhost:8000/docs
+Интерфейс доступен на `http://localhost:3000`, документация API на `http://localhost:8000/docs`. Vite отправляет запросы `/api/*` на бэкенд и убирает префикс `/api`.
 
-### Production
+## Конфигурация
 
-1. **Build Frontend:**
+| Переменная | Назначение | Значение по умолчанию |
+| --- | --- | --- |
+| `STEAM_API_KEY` | Ключ Steam Web API, обязателен | нет |
+| `SECRET_KEY` | Ключ подписи cookie, обязателен | нет |
+| `DATABASE_URL` | Адрес базы данных | `sqlite:///./steam.db` |
+| `BASE_URL` | Публичный адрес API для Steam OpenID callback | `http://localhost:8000` |
+| `FRONTEND_URL` | Адрес интерфейса после входа | `http://localhost:3000` |
+| `ALLOWED_ORIGINS` | Разрешённые CORS origins, JSON-массив | localhost:3000 и localhost:8000 |
+
+Проект использует SQLite. Таблицы создаются при старте приложения через `create_all`. Миграции Alembic пока не настроены, поэтому изменение существующей схемы требует отдельной миграции.
+
+Для развёртывания по HTTPS задайте HTTPS-адреса в `BASE_URL` и `FRONTEND_URL`: cookie сессии тогда получает флаг `Secure`. Интерфейс должен направлять `/api/*` на бэкенд по тому же принципу, что и Vite в разработке. `BASE_URL` должен быть доступен браузеру при возврате из Steam.
+
+## Как работает вход
+
+1. `GET /auth/steam/login` создаёт состояние входа в подписанной HTTP-only cookie и возвращает URL Steam OpenID.
+2. Steam перенаправляет браузер на `GET /auth/steam/callback`. Бэкенд проверяет состояние, поля ответа и подтверждение Steam, затем создаёт или обновляет пользователя.
+3. Бэкенд сохраняет ID пользователя в сессии и перенаправляет на `/auth/callback` интерфейса. Интерфейс получает пользователя через `GET /auth/me`.
+4. Запросы библиотеки и статуса требуют эту сессию. ID в URL должен совпадать с ID пользователя в cookie. `POST /auth/logout` завершает сессию.
+
+Сессия хранится в подписанной cookie сроком до семи дней. Секрет подписи должен быть одинаковым у всех экземпляров API и не должен попадать в репозиторий.
+
+## API
+
+| Метод и путь | Результат |
+| --- | --- |
+| `GET /auth/steam/login` | URL для входа через Steam |
+| `GET /auth/steam/callback` | Проверка ответа Steam и переход в интерфейс |
+| `GET /auth/me` | Текущий пользователь |
+| `POST /auth/logout` | Выход |
+| `POST /games/import/{user_id}` | Синхронизация библиотеки; числа добавленных, обновлённых и удалённых игр |
+| `GET /games/{user_id}` | Сохранённые игры пользователя |
+| `GET /status/{user_id}` | Текущий статус из Steam Web API |
+
+SteamID64 возвращается строкой, поскольку JavaScript теряет точность при чтении 17-значного числа. Статус обновляется при открытии страницы и по кнопке «Обновить»; автоматического опроса или WebSocket пока нет.
+
+При успешном импорте пустого списка сохранённая библиотека очищается. Steam может вернуть пустой список и для закрытой библиотеки, поэтому перед использованием синхронизации для таких профилей это поведение нужно уточнить.
+
+## Проверки
+
 ```bash
+python -m unittest discover -s tests -v
 npm run build
 ```
 
-2. **Запуск с Gunicorn/Uvicorn:**
-```bash
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-```
+Тесты API подменяют ответы Steam и проверяют вход, сессию, запрет доступа к чужому ID, импорт и контракт статуса. Реальный вход требует рабочего Steam API key и доступного callback URL. Логи бэкенда пишутся в `logs/steam_api.log`.
 
-## 🔑 Получение Steam API ключа
+## Что осталось
 
-1. Перейдите на https://steamcommunity.com/dev/apikey
-2. Войдите через Steam аккаунт
-3. Заполните форму регистрации
-4. Скопируйте API ключ в `.env` файл
+- Настроить миграции БД для существующих установок SQLite.
+- Добавить ограничение частоты запросов; параметры `rate_limit_*` в конфигурации пока не применяются.
+- Решить, как отличать закрытую библиотеку Steam от действительно пустой.
+- Добавить автоматическое обновление статуса, если нужен именно непрерывный мониторинг.
 
-## 🛠️ Технологии
-
-### Backend
-- **FastAPI** - современный, быстрый веб-фреймворк
-- **SQLAlchemy** - ORM для работы с БД
-- **httpx** - асинхронный HTTP клиент
-- **Pydantic** - валидация данных
-- **python-dotenv** - управление переменными окружения
-
-### Frontend
-- **Vue 3** - прогрессивный JavaScript фреймворк
-- **TypeScript** - типизированный JavaScript
-- **Vite** - быстрый сборщик модулей
-- **Pinia** - state management
-- **Vue Router** - маршрутизация
-- **Axios** - HTTP клиент
-
-## 📚 API Endpoints
-
-### Авторизация
-- `GET /auth/steam/login` - Получить URL для входа через Steam
-- `GET /auth/steam/callback` - Callback для Steam OAuth
-
-### Игры
-- `POST /games/import/{user_id}` - Импортировать игры из Steam
-- `GET /games/{user_id}` - Получить список игр пользователя
-
-### Статус
-- `GET /status/{user_id}` - Получить текущий статус игрока
-
-## 🎨 Дизайн
-
-Приложение использует современный дизайн-подход:
-- **Glassmorphism** эффекты для карточек
-- **Тёмная/светлая** тема с плавными переходами
-- **Inter** шрифт для интерфейса
-- **JetBrains Mono** для технических данных
-- Адаптивная верстка для всех устройств
-
-## 🔒 Безопасность
-
-- ✅ CORS политика для разрешенных доменов
-- ✅ Rate limiting на уровне приложения
-- ✅ Валидация всех входных данных
-- ✅ Безопасное хранение секретов в `.env`
-- ✅ Экспоненциальный backoff для retry логики
-- ✅ Timeout настройки для всех запросов
-
-## 📈 Оптимизация производительности
-
-- Connection pooling для HTTP клиента
-- Переиспользование соединений
-- Асинхронные операции
-- Кэширование на стороне клиента
-- Lazy loading компонентов
-
-## 🐛 Отладка
-
-### Backend логи
-```bash
-tail -f logs/app.log  # если настроен file handler
-```
-
-### Frontend dev tools
-Используйте Vue DevTools браузерное расширение
-
-## 📝 Лицензия
-
-MIT
-
-## 👨‍💻 Разработка
-
-При добавлении новых функций:
-1. Создавайте отдельные ветки для функций
-2. Следуйте существующей структуре кода
-3. Добавляйте типы для TypeScript
-4. Тестируйте на обеих темах (светлая/тёмная)
-5. Проверяйте адаптивность на мобильных устройствах
-# steam-api
+Основные файлы: `main.py` (FastAPI), `app/routers/` (маршруты), `app/services/steam_service.py` (Steam Web API), `app/crud.py` (база данных), `frontend/src/` (интерфейс).

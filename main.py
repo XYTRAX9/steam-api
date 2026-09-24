@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.database import engine, Base
 from app.routers import auth, games, status
 from app.services.steam_service import SteamService
@@ -16,6 +17,15 @@ app = FastAPI(
     title="Steam Integration API",
     description="API для интеграции со Steam: авторизация, импорт игр и мониторинг активности",
     version="1.0.0"
+)
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key.get_secret_value(),
+    session_cookie="steam_session",
+    same_site="lax",
+    https_only=settings.base_url.startswith("https://"),
+    max_age=60 * 60 * 24 * 7,
 )
 
 # CORS middleware с ограниченными origins для безопасности

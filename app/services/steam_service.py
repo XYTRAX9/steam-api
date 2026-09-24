@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+import re
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 from app.config import settings
@@ -59,11 +60,23 @@ class SteamService:
         return f"{SteamService.STEAM_OPENID_URL}?{urlencode(params)}"
 
     @classmethod
-    async def verify_openid(cls, params: Dict[str, Any]) -> Optional[int]:
+    async def verify_openid(cls, params: Dict[str, Any], expected_return_to: str) -> Optional[int]:
         """
         Проверяет подлинность ответа Steam OpenID.
         Возвращает SteamID64 при успешной проверке или None при ошибке.
         """
+        claimed_id = params.get("openid.claimed_id", "")
+        if (
+            params.get("openid.ns") != "http://specs.openid.net/auth/2.0"
+            or params.get("openid.mode") != "id_res"
+            or params.get("openid.op_endpoint") != cls.STEAM_OPENID_URL
+            or params.get("openid.return_to") != expected_return_to
+            or params.get("openid.identity") != claimed_id
+            or not re.fullmatch(r"https?://steamcommunity\.com/openid/id/\d{17}", claimed_id)
+        ):
+            logger.warning("Invalid Steam OpenID assertion fields")
+            return None
+
         # Изменяем mode на check_authentication для валидации
         verify_params = dict(params)
         verify_params["openid.mode"] = "check_authentication"
@@ -82,16 +95,11 @@ class SteamService:
                 return None
 
             # Проверяем, что Steam подтвердил валидность
-            if "is_valid:true" not in response.text:
+            if not any(line.strip() == "is_valid:true" for line in response.text.splitlines()):
                 logger.warning("OpenID verification returned is_valid:false")
                 return None
 
             # Извлекаем SteamID64 из claimed_id
-            claimed_id = params.get("openid.claimed_id", "")
-            if not claimed_id:
-                logger.warning("OpenID claimed_id is missing")
-                return None
-
             # SteamID находится в конце URL - валидация формата
             steam_id_str = claimed_id.split("/")[-1]
 

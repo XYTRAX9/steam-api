@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 
 
@@ -20,6 +20,22 @@ class User(UserBase):
         from_attributes = True
 
 
+class PublicUser(BaseModel):
+    id: int
+    steam_id: str
+    persona_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    profile_url: Optional[str] = None
+
+    @field_validator("steam_id", mode="before")
+    @classmethod
+    def stringify_steam_id(cls, value: int | str) -> str:
+        return str(value)
+
+    class Config:
+        from_attributes = True
+
+
 class GameBase(BaseModel):
     app_id: int
     name: str
@@ -35,11 +51,19 @@ class Game(GameBase):
         from_attributes = True
 
 
+class ImportGamesResponse(BaseModel):
+    games_added: int
+    games_updated: int
+    games_removed: int
+
+
 class PlayerStatus(BaseModel):
-    steam_id: int
+    user_id: int
+    steam_id: str
     persona_name: str
     persona_state: int
     is_in_game: bool
-    game_id: Optional[int] = None
+    game_id: Optional[str] = None
     game_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    profile_url: Optional[str] = None

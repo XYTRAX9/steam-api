@@ -1,3 +1,6 @@
+import secrets
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -12,9 +15,11 @@ logger = get_logger("routers.auth")
 
 
 @router.get("/steam/login")
-async def steam_login():
+async def steam_login(request: Request):
     """Инициирует процесс авторизации через Steam OpenID"""
-    return_url = f"{settings.base_url}/auth/steam/callback"
+    state = secrets.token_urlsafe(32)
+    request.session["steam_login_state"] = state
+    return_url = f"{settings.base_url}/auth/steam/callback?{urlencode({'state': state})}"
     login_url = SteamService.get_login_url(return_url)
     logger.info("Generated Steam login URL")
     return {"login_url": login_url}
@@ -24,20 +29,26 @@ async def steam_login():
 async def steam_callback(request: Request, db: Session = Depends(get_db)):
     """Обрабатывает callback от Steam после авторизации"""
     params = dict(request.query_params)
+    state = request.session.pop("steam_login_state", None)
+    expected_return_to = (
+        f"{settings.base_url}/auth/steam/callback?{urlencode({'state': state})}"
+        if state else None
+    )
 
-    # Проверяем валидность ответа
-    steam_id = await SteamService.verify_openid(params)
+    steam_id = None
+    if state and params.get("state") == state:
+        steam_id = await SteamService.verify_openid(params, expected_return_to)
 
     if not steam_id:
         logger.warning("Invalid Steam OpenID response received")
-        raise HTTPException(status_code=400, detail="Invalid Steam OpenID response")
+        return RedirectResponse(f"{settings.frontend_url}/auth/callback?error=invalid_response", status_code=303)
 
     # Получаем информацию о пользователе
     player_data = await SteamService.get_player_summary(steam_id)
 
     if not player_data:
         logger.error(f"Failed to fetch player data for steam_id={steam_id}")
-        raise HTTPException(status_code=500, detail="Failed to fetch player data")
+        return RedirectResponse(f"{settings.frontend_url}/auth/callback?error=steam_unavailable", status_code=303)
 
     # Создаем или обновляем пользователя
     db_user = crud.get_user_by_steam_id(db, steam_id)
@@ -62,12 +73,27 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
         db_user = crud.create_user(db, user_create)
         logger.info(f"Created new user: steam_id={steam_id}, user_id={db_user.id}")
 
-    return {
-        "message": "Successfully authenticated",
-        "user": {
-            "id": db_user.id,
-            "steam_id": db_user.steam_id,
-            "persona_name": db_user.persona_name,
-            "avatar_url": db_user.avatar_url
-        }
-    }
+    request.session["user_id"] = db_user.id
+    return RedirectResponse(f"{settings.frontend_url}/auth/callback", status_code=303)
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user = crud.get_user_by_id(db, user_id)
+    if not user:
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="Session user not found")
+    return user
+
+
+@router.get("/me", response_model=schemas.PublicUser)
+def get_me(user=Depends(get_current_user)):
+    return user
+
+
+@router.post("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return {"message": "Logged out"}

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./steam.db"
     secret_key: SecretStr  # Защищенное хранение secret key
     base_url: str = "http://localhost:8000"
+    frontend_url: str = "http://localhost:3000"
 
     # Дополнительные параметры безопасности
     allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
@@ -33,7 +34,7 @@ class Settings(BaseSettings):
 
         return v
 
-    @field_validator("base_url")
+    @field_validator("base_url", "frontend_url")
     @classmethod
     def validate_url(cls, v: str) -> str:
         v = v.strip()
